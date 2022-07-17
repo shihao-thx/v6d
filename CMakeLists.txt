@@ -19,6 +19,8 @@ project(vineyard LANGUAGES C CXX VERSION ${VINEYARD_VERSION})
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(USE_STATIC_BOOST_LIBS "Build with static-linked boost libraries" OFF)
 option(USE_EXTERNAL_ETCD_LIBS "Build with external etcd-cpp-apiv3 library rather than the submodule one" OFF)
+option(USE_EXTERNAL_REDIS_LIBS "Build with external redis-plus-plus library rather than the submodule one" ON)
+option(USE_EXTERNAL_HIREDIS_LIBS "Build with external hiredis library rather than the submodule one" ON)
 option(USE_EXTERNAL_TBB_LIBS "Build with external tbb library rather than the submodule one" OFF)
 option(USE_EXTERNAL_NLOHMANN_JSON_LIBS "Build with external nlohmann-json library rather than the submodule one" ON)
 option(USE_ASAN "Using address sanitizer to check memory accessing" OFF)
@@ -258,6 +260,44 @@ macro(find_etcd_cpp_apiv3)
         include("cmake/BuildEtcdCpp.cmake")
     endif()
 endmacro(find_etcd_cpp_apiv3)
+
+macro(find_hiredis)
+    if(USE_EXTERNAL_HIREDIS_LIBS)
+    # not use find_package, because maybe we don't have hiredis-config.cmake
+        find_path(HIREDIS_HEADER_PATH hiredis)
+        find_library(HIREDIS_LIBRARY hiredis)
+        if(HIREDIS_HEADER_PATH AND HIREDIS_LIBRARY)
+            message(STATUS "\n from shihao: Found hiredis")
+            set(HIREDIS_INCLUDE_DIR ${HIREDIS_HEADER_PATH})
+            set(HIREDIS_LIBRARIES ${HIREDIS_LIBRARY})
+        else()
+            message(WARNING "hiredis not found, will use the bundled one from git submodules.")
+            include("cmake/BuildHiredis.cmake")
+        endif()
+    else()
+        include("cmake/BuildHiredis.cmake")
+    endif()
+endmacro(find_hiredis)
+
+# ToDo： 需要解决没有使用cmake安装hiredis的情况
+macro(find_redis_plus_plus)
+	set(REDIS_PLUS_PLUS_CXX_STANDARD 11)
+    if(USE_EXTERNAL_REDIS_LIBS)
+        # not use find_package, because of hiredis
+        find_path(REDIS_PLUS_PLUS_HEADER sw)
+        find_library(REDIS_PLUS_PLUS_LIB redis++)
+        if(REDIS_PLUS_PLUS_HEADER AND REDIS_PLUS_PLUS_LIB)
+            message(STATUS "\n from shihao: Found redis_plus_plus")
+            set(REDIS_PLUS_PLUS_INCLUDE_DIR "${REDIS_PLUS_PLUS_HEADER}/sw")
+            set(REDIS_PLUS_PLUS_LIBRARIES ${REDIS_PLUS_PLUS_LIB})
+        else()
+            message(WARNING "redis-plus-plus not found, will use the bundled one from git submodules.")
+            include("cmake/BuildRedisCpp.cmake")
+        endif()
+    else()
+        include("cmake/BuildRedisCpp.cmake")
+    endif()
+endmacro(find_redis_plus_plus)
 
 macro(find_fuse)
     include("cmake/FindFUSE3.cmake")
@@ -534,6 +574,8 @@ include("cmake/GenerateVineyardJava.cmake")
 if(BUILD_VINEYARD_SERVER)
     find_openssl_libraries(REQUIRED)
     find_etcd_cpp_apiv3()
+    find_hiredis()
+    find_redis_plus_plus()
     find_intel_tbb()
     file(GLOB_RECURSE SERVER_SRC_FILES "src/server/*.cc"
                                        "src/common/memory/*.cc"
@@ -544,13 +586,15 @@ if(BUILD_VINEYARD_SERVER)
     target_link_libraries(vineyardd PUBLIC ${Boost_LIBRARIES}
                                            ${CPPREST_LIB}
                                            ${ETCD_CPP_LIBRARIES}
+                                           ${HIREDIS_LIBRARIES}
+                                           ${REDIS_PLUS_PLUS_LIBRARIES}
                                            ${GFLAGS_LIBRARIES}
                                            ${GLOG_LIBRARIES}
                                            ${OPENSSL_LIBRARIES}
                                            nlohmann_json::nlohmann_json
                                            TBB::tbb
     )
-    target_include_directories(vineyardd PRIVATE ${ETCD_CPP_INCLUDE_DIR})
+    target_include_directories(vineyardd PRIVATE ${ETCD_CPP_INCLUDE_DIR} ${HIREDIS_INCLUDE_DIR} ${REDIS_PLUS_PLUS_INCLUDE_DIR})
     if(${LIBUNWIND_FOUND})
         target_link_libraries(vineyardd PRIVATE ${LIBUNWIND_LIBRARIES})
     endif()

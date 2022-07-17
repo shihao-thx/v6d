@@ -34,3 +34,7 @@
 	path = thirdparty/redis-plus-plus
 	url = https://github.com/sewenew/redis-plus-plus.git
 	shallow = true
+[submodule "thirdparty/hiredis"]
+	path = thirdparty/hiredis
+	url = https://github.com/redis/hiredis.git
+	shallow = true
