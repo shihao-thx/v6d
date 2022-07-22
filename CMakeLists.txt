@@ -267,7 +267,6 @@ macro(find_hiredis)
         find_path(HIREDIS_HEADER_PATH hiredis)
         find_library(HIREDIS_LIBRARY hiredis)
         if(HIREDIS_HEADER_PATH AND HIREDIS_LIBRARY)
-            message(STATUS "\n from shihao: Found hiredis")
             set(HIREDIS_INCLUDE_DIR ${HIREDIS_HEADER_PATH})
             set(HIREDIS_LIBRARIES ${HIREDIS_LIBRARY})
         else()
@@ -279,7 +278,6 @@ macro(find_hiredis)
     endif()
 endmacro(find_hiredis)
 
-# ToDo： 需要解决没有使用cmake安装hiredis的情况
 macro(find_redis_plus_plus)
 	set(REDIS_PLUS_PLUS_CXX_STANDARD 11)
     if(USE_EXTERNAL_REDIS_LIBS)
@@ -287,7 +285,6 @@ macro(find_redis_plus_plus)
         find_path(REDIS_PLUS_PLUS_HEADER sw)
         find_library(REDIS_PLUS_PLUS_LIB redis++)
         if(REDIS_PLUS_PLUS_HEADER AND REDIS_PLUS_PLUS_LIB)
-            message(STATUS "\n from shihao: Found redis_plus_plus")
             set(REDIS_PLUS_PLUS_INCLUDE_DIR "${REDIS_PLUS_PLUS_HEADER}/sw")
             set(REDIS_PLUS_PLUS_LIBRARIES ${REDIS_PLUS_PLUS_LIB})
         else()
@@ -593,6 +590,7 @@ if(BUILD_VINEYARD_SERVER)
                                            ${OPENSSL_LIBRARIES}
                                            nlohmann_json::nlohmann_json
                                            TBB::tbb
+                                           uv
     )
     target_include_directories(vineyardd PRIVATE ${ETCD_CPP_INCLUDE_DIR} ${HIREDIS_INCLUDE_DIR} ${REDIS_PLUS_PLUS_INCLUDE_DIR})
     if(${LIBUNWIND_FOUND})
