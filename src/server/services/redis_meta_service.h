@@ -17,15 +17,15 @@ limitations under the License.
 #include <string>
 #include <vector>
 
-
+#include "redis++/async_redis++.h"
 
 #include "server/services/meta_service.h"
 #include "server/util/redis_launcher.h"
 
-using namespace sw;
 
 namespace vineyard {
 
+namespace redis = sw::redis;
 /**
  * @brief RedisLock is designed as the lock for accessing redis
  *
@@ -34,9 +34,8 @@ namespace vineyard {
 
 
 /**
- * @brief LocalMetaService provides meta services in regards to local, e.g.
- * requesting and committing udpates
- *
+ * @brief 
+ * 
  */
 class RedisMetaService : public IMetaService {
  public:
@@ -71,13 +70,8 @@ class RedisMetaService : public IMetaService {
       callback_t<const std::vector<op_t>&, unsigned, callback_t<unsigned>>
           callback) override;
 
-  void retryDaeminWatch(
-      const std::string& prefix,
-      callback_t<const std::vector<op_t>&, unsigned, callback_t<unsigned>>
-          callback);
-
   Status probe() override {
-    if (Redisauncher::probeRedisServer(etcd_, prefix_)) {
+    if (RedisLauncher::probeRedisServer(redis_, prefix_)) {
       return Status::OK();
     } else {
       return Status::Invalid(
@@ -96,11 +90,11 @@ class RedisMetaService : public IMetaService {
   Status preStart() override;
 
   std::unique_ptr<redis::AsyncRedis> redis_;
-  std::unique_ptr<boost::process::child> etcd_proc_; // 什么用处
+  std::unique_ptr<boost::process::child> redis_proc_; // 什么用处
 
   friend class IMetaService;
 };
 
 }  // namespace vineyard
 
-#endif  // SRC_SERVER_SERVICES_LOCAL_META_SERVICE_H_
+#endif  // SRC_SERVER_SERVICES_REDIS_META_SERVICE_H_

@@ -32,7 +32,7 @@ DEFINE_string(meta, "redis", "Metadata storage, can be one of: etcd, redis, loca
 DEFINE_string(etcd_endpoint, "http://127.0.0.1:2379", "endpoint of etcd");
 DEFINE_string(etcd_prefix, "vineyard", "path prefix in etcd");
 DEFINE_string(etcd_cmd, "", "path of etcd executable");
-DEFINE_string(redis_endpoint, "http://127.0.0.1:6379", "endpoint of redis");
+DEFINE_string(redis_endpoint, "192.168.127.130", "endpoint of redis");
 DEFINE_string(redis_prefix, "vineyard", "path prefix in redis");
 DEFINE_string(redis_cmd, "", "path of etcd executable");
 

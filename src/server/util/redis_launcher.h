@@ -29,9 +29,11 @@ limitations under the License.
 #include "common/util/logging.h"
 #include "common/util/status.h"
 
-using namespace sw;
 
 namespace vineyard {
+
+namespace redis = sw::redis;
+
 class RedisLauncher {
  public:
   explicit RedisLauncher(const json& redis_spec) : redis_spec_(redis_spec) {}

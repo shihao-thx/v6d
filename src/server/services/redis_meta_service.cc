@@ -15,15 +15,49 @@ limitations under the License.
 
 #include "server/services/redis_meta_service.h"
 
+#include <chrono>
+#include <string>
+#include <vector>
+
+#include "common/util/boost.h"
+#include "common/util/logging.h"
+
 namespace vineyard {
+
+void RedisMetaService::Stop() {
+  /*if (stopped_.exchange(true)) {
+    return;
+  }
+  if (backoff_timer_) {
+    boost::system::error_code ec;
+    backoff_timer_->cancel(ec);
+  }
+  if (watcher_) {
+    try {
+      watcher_->Cancel();
+    } catch (...) {}
+  }
+  if (etcd_proc_) {
+    std::error_code err;
+    etcd_proc_->terminate(err);
+    kill(etcd_proc_->id(), SIGTERM);
+    etcd_proc_->wait(err);
+  }*/
+}
+
+void RedisMetaService::requestLock(
+      std::string lock_name,
+      callback_t<std::shared_ptr<ILock>> callback_after_locked) {
+
+}
 
 void RedisMetaService::requestAll(
     const std::string& prefix, unsigned base_rev,
     callback_t<const std::vector<op_t>&, unsigned> callback) {
     auto self(shared_from_base());
-
+/*
     auto cursor = 0LL;
-    auto pattern = "vineyard/*";
+    auto pattern = "vineyard";
     std::unordered_set<std::string> keys;
     while (true) {
         // 两次scan之间数据可能变动
@@ -44,12 +78,30 @@ void RedisMetaService::requestAll(
     }
     //auto status = Status::EtcdError(resp.error_code(), resp.error_message());
     self->server_ptr_->GetMetaContext().post( 
-        boost::bind(callback, status, ops, 0));
+        boost::bind(callback, status, ops, 0));*/
 }
 
-Status EtcdMetaService::preStart() {
-  //auto launcher = RedisLauncher(redis_spec_);
-  RedisLauncher launcher(redis_spec_);
-  return launcher.LaunchRedisServer(etcd_, meta_sync_lock_, etcd_proc_);
+void RedisMetaService::requestUpdates(
+    const std::string& prefix, unsigned since_rev,
+    callback_t<const std::vector<op_t>&, unsigned> callback) {
+
 }
+
+void RedisMetaService::commitUpdates(const std::vector<op_t>&,
+                    callback_t<unsigned> callback_after_updated) {
+
+}
+
+void RedisMetaService::startDaemonWatch(
+    const std::string& prefix, unsigned since_rev,
+    callback_t<const std::vector<op_t>&, unsigned, callback_t<unsigned>>
+    callback) {
+
+}
+
+Status RedisMetaService::preStart() {
+  RedisLauncher launcher(redis_spec_);
+  return launcher.LaunchRedisServer(redis_, meta_sync_lock_, redis_proc_);
+}
+
 }

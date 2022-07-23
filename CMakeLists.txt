@@ -38,7 +38,7 @@ option(BUILD_VINEYARD_JAVA "Build vineyard's java SDK" OFF)
 
 option(BUILD_VINEYARD_BASIC "Build vineyard's basic data structures" ON)
 option(BUILD_VINEYARD_IO "Enable vineyard's IOAdaptor support" ON)
-option(BUILD_VINEYARD_GRAPH "Enable vineyard's graph data structures" ON)
+option(BUILD_VINEYARD_GRAPH "Enable vineyard's graph data structures" OFF) # shihao
 option(BUILD_VINEYARD_MALLOC "Build vineyard's implementation for client-side malloc" ON)
 option(BUILD_VINEYARD_MIGRATION "Enable vineyard's object migration support" ON)
 option(BUILD_VINEYARD_FUSE "Enable vineyard's fuse support" OFF)

@@ -15,8 +15,6 @@ limitations under the License.
 
 #include "server/util/redis_launcher.h"
 
-#include <stdlib.h>
-
 #include <netdb.h>
 
 #include <sys/types.h>
@@ -35,17 +33,18 @@ Status RedisLauncher::LaunchRedisServer(std::unique_ptr<redis::AsyncRedis>& redi
                           std::string& sync_lock,
                           std::unique_ptr<boost::process::child>& redis_proc) {
   redis::ConnectionOptions opts;
-  opts.host = redis_spec_["etcd_endpoint"].get_ref<std::string const&>();
+  opts.host = redis_spec_["redis_endpoint"].get_ref<std::string const&>();
+  opts.host = "192.168.127.130";
   opts.password = "root";
   opts.port = 6379;
 
   redis::ConnectionPoolOptions pool_opts;
   pool_opts.size = 3;
-  
+ 
   redis_client.reset(new redis::AsyncRedis(opts, pool_opts));
-
-  if (probeEtcdServer(redis_client)) {
-    return Status::OK();
+  
+  if (probeRedisServer(redis_client, sync_lock)) {
+        return Status::OK();
   }
 
   LOG(INFO) << "Starting the etcd server";
@@ -56,11 +55,11 @@ void RedisLauncher::parseEndpoint() {}
 
 void RedisLauncher::initHostInfo() {}
 
-bool RedisLauncher::probeEtcdServer(std::unique_ptr<redis::AsyncRedis>& redis_client, std::string const& key) {
+bool RedisLauncher::probeRedisServer(std::unique_ptr<redis::AsyncRedis>& redis_client, std::string const& key) {
   auto task = redis_client->ping(); 
   auto response = task.get();
   // TODO:
-  return redis_client && response;
+  return redis_client && (response == "PONG"); 
 }
 
 }

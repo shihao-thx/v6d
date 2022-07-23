@@ -88,7 +88,7 @@ Status VineyardRunner::GetRootSession(vs_ptr_t& vs_ptr) {
 }
 
 Status VineyardRunner::CreateNewSession(
-    StoreType const& bulk_store_type, callback_t<std::string const&> callback) {
+  StoreType const& bulk_store_type, callback_t<std::string const&> callback) {
   SessionID session_id = GenerateSessionID();
   json spec(spec_template_);
 

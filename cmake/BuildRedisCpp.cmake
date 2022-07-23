@@ -14,8 +14,8 @@
 
 # build reids-plus-plus
 set(REDIS_PLUS_PLUS_BUILD_TEST OFF CACHE BOOL "Build tests.")
-set(REDIS_PLUS_PLUS_BUILD_ASYNC libuv CACHE STRING "Support async interface")
-set(REDIS_PLUS_PLUS_ASYNC_FUTURE boost CACHE STRING "Use boost future")
+set(REDIS_PLUS_PLUS_BUILD_ASYNC libuv CACHE STRING "Support async interface.")
+set(REDIS_PLUS_PLUS_ASYNC_FUTURE boost CACHE STRING "Use boost future.")
 add_subdirectory_static(thirdparty/redis-plus-plus EXCLUDE_FROM_ALL)
 set(REDIS_PLUS_PLUS_LIBRARIES redis++)
 set(REDIS_PLUS_PLUS_INCLUDE_DIR thirdparty/redis-plus-plus/src/sw)

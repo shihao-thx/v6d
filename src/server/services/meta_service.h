@@ -25,7 +25,7 @@ limitations under the License.
 #include <string>
 #include <vector>
 
-#include <stdlib.h>
+//#include <stdlib.h>
 
 #include "boost/asio.hpp"
 #include "boost/asio/steady_timer.hpp"
@@ -138,8 +138,8 @@ class IMetaService : public std::enable_shared_from_this<IMetaService> {
     LOG(INFO) << "meta service is starting ...";
     RETURN_ON_ERROR(this->preStart());
     RETURN_ON_ERROR(this->probe());
-    LOG(INFO) << "from shihao: meta service starts ok";
-    exit(0);
+    //LOG(INFO) << "from shihao: redis meta service starts ok";
+    //exit(0);
 
     auto self(shared_from_this());
     requestValues("", [self](const Status& status, const json& meta,
