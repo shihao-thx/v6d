@@ -14,6 +14,7 @@ limitations under the License.
 */
 
 #include "server/util/redis_launcher.h"
+#include "redis++/recipes/redlock.h"
 
 #include <netdb.h>
 
@@ -29,21 +30,27 @@ limitations under the License.
 
 namespace vineyard {
 
-Status RedisLauncher::LaunchRedisServer(std::unique_ptr<redis::AsyncRedis>& redis_client,
-                          std::string& sync_lock,
-                          std::unique_ptr<boost::process::child>& redis_proc) {
+Status RedisLauncher::LaunchRedisServer(
+  std::unique_ptr<redis::AsyncRedis>& redis_client,
+  std::unique_ptr<redis::Redis>& syncredis_client,
+  std::shared_ptr<redis::RedLock<redis::RedMutex>>& lock,
+  std::unique_ptr<boost::process::child>& redis_proc) {
+  // async redis client
   redis::ConnectionOptions opts;
   opts.host = redis_spec_["redis_endpoint"].get_ref<std::string const&>();
-  opts.host = "192.168.127.130";
   opts.password = "root";
   opts.port = 6379;
-
   redis::ConnectionPoolOptions pool_opts;
-  pool_opts.size = 3;
- 
+  pool_opts.size = 1;
   redis_client.reset(new redis::AsyncRedis(opts, pool_opts));
-  
-  if (probeRedisServer(redis_client, sync_lock)) {
+  redis_client->command<long long>("SETNX", "redis_revision", 0).get();
+
+  // sync redis client
+  syncredis_client.reset(new redis::Redis(opts, pool_opts));
+  redis::RedMutex mtx(*syncredis_client, "resource");
+  lock.reset(new redis::RedLock<redis::RedMutex>(mtx, std::defer_lock));
+
+  if (probeRedisServer(redis_client, syncredis_client, "sync_lock")) {
         return Status::OK();
   }
 
@@ -55,11 +62,15 @@ void RedisLauncher::parseEndpoint() {}
 
 void RedisLauncher::initHostInfo() {}
 
-bool RedisLauncher::probeRedisServer(std::unique_ptr<redis::AsyncRedis>& redis_client, std::string const& key) {
+bool RedisLauncher::probeRedisServer(
+  std::unique_ptr<redis::AsyncRedis>& redis_client,
+  std::unique_ptr<redis::Redis>& syncredis_client,
+  std::string const& key) {
   auto task = redis_client->ping(); 
   auto response = task.get();
+  auto sync_response = syncredis_client->ping();
   // TODO:
-  return redis_client && (response == "PONG"); 
+  return redis_client && syncredis_client && (response == "PONG") && (sync_response == "PONG"); 
 }
 
 }

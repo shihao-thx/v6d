@@ -84,6 +84,7 @@ class LocalMetaService : public IMetaService {
 
   friend class IMetaService;
 };
+
 }  // namespace vineyard
 
 #endif  // SRC_SERVER_SERVICES_LOCAL_META_SERVICE_H_

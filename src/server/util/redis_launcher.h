@@ -25,6 +25,8 @@ limitations under the License.
 #include "boost/filesystem.hpp"
 #include "boost/process.hpp"
 #include "redis++/async_redis++.h"
+#include "redis++/redis++.h"
+//#include "redis++/recipes/redlock.h"
 
 #include "common/util/logging.h"
 #include "common/util/status.h"
@@ -39,10 +41,12 @@ class RedisLauncher {
   explicit RedisLauncher(const json& redis_spec) : redis_spec_(redis_spec) {}
 
   Status LaunchRedisServer(std::unique_ptr<redis::AsyncRedis>& redis_client,
-                          std::string& sync_lock,
+                          std::unique_ptr<redis::Redis>& syncredis_client,
+                          std::shared_ptr<redis::RedLock<redis::RedMutex>>& lock,
                           std::unique_ptr<boost::process::child>& redis_proc);
 
   static bool probeRedisServer(std::unique_ptr<redis::AsyncRedis>& redis_client,
+                              std::unique_ptr<redis::Redis>& syncredis_client,
                               std::string const& key);
 
  private:

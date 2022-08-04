@@ -14,24 +14,109 @@ limitations under the License.
 #define SRC_SERVER_SERVICES_REDIS_META_SERVICE_H_
 
 #include <memory>
+#include <mutex>
+#include <queue>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "redis++/async_redis++.h"
+#include "redis++/redis++.h"
+//#include "redis++/recipes/redlock.h"
 
 #include "server/services/meta_service.h"
 #include "server/util/redis_launcher.h"
 
-
 namespace vineyard {
 
 namespace redis = sw::redis;
+
+namespace detail {
+template <typename T>
+struct greater_on_tuple_fst {
+  bool operator()(T const& left, T const& right) const noexcept {
+    return left.first > right.first;
+  }
+};
+}  // namespace detail
+
+using callback_task_t =
+    std::pair<unsigned,
+              callback_t<const std::vector<IMetaService::op_t>&, unsigned>>;
+using callback_task_queue_t =
+    std::priority_queue<callback_task_t, std::vector<callback_task_t>,
+                        detail::greater_on_tuple_fst<callback_task_t>>;
+
+class RedisMetaService;
+/**
+ * @brief RedisWatchHandler manages the watch on etcd
+ *
+ */
+class RedisWatchHandler {
+ public:
+  RedisWatchHandler(const std::shared_ptr<RedisMetaService>& meta_service_ptr,
+#if BOOST_VERSION >= 106600
+                   asio::io_context& ctx,
+#else
+                   asio::io_service& ctx,
+#endif
+                   callback_t<const std::vector<IMetaService::op_t>&, unsigned,
+                              callback_t<unsigned>>
+                       callback,
+                   std::string const& prefix, std::string const& filter_prefix,
+                   callback_task_queue_t& registered_callbacks,
+                   std::atomic<unsigned>& handled_rev,
+                   std::mutex& registered_callbacks_mutex,
+                   std::mutex& watch_mutex) 
+      : meta_service_ptr_(meta_service_ptr),
+        ctx_(ctx),
+        callback_(callback),
+        prefix_(prefix),
+        filter_prefix_(filter_prefix),
+        registered_callbacks_(registered_callbacks),
+        handled_rev_(handled_rev),
+        registered_callbacks_mutex_(registered_callbacks_mutex),
+        watch_mutex_(watch_mutex) {
+  }
+  
+  void operator()(std::unique_ptr<redis::AsyncRedis>&, std::string);
+
+ private:
+  const std::shared_ptr<RedisMetaService> meta_service_ptr_;
+#if BOOST_VERSION >= 106600
+  asio::io_context& ctx_;
+#else
+  asio::io_service& ctx_;
+#endif
+  const callback_t<const std::vector<IMetaService::op_t>&, unsigned,
+                   callback_t<unsigned>>
+      callback_;
+  std::string const prefix_, filter_prefix_;
+
+  callback_task_queue_t& registered_callbacks_;
+  std::atomic<unsigned>& handled_rev_;
+  std::mutex& registered_callbacks_mutex_;
+  std::mutex& watch_mutex_;
+};
 /**
  * @brief RedisLock is designed as the lock for accessing redis
  *
  */
+class RedisLock : public ILock {
+ public:
+  Status Release(unsigned& rev) override {
+    return callback_(Status::OK(), rev);
+  }
+  ~RedisLock() override {}
 
+  explicit RedisLock(std::shared_ptr<RedisMetaService> meta_service_ptr,
+                    const callback_t<unsigned&>& callback, unsigned rev)
+      : ILock(rev), meta_service_ptr_(meta_service_ptr), callback_(callback) {}
 
+ protected:
+  const std::shared_ptr<RedisMetaService> meta_service_ptr_;
+  const callback_t<unsigned&> callback_;
+};
 
 /**
  * @brief 
@@ -47,7 +132,7 @@ class RedisMetaService : public IMetaService {
       redis_spec_(server_ptr_->GetSpec()["metastore_spec"]),
       prefix_(redis_spec_["redis_prefix"].get<std::string>() + "/" +
                 SessionIDToString(server_ptr->session_id())) {
-    //this->handled_rev_.store(0);   
+    this->handled_rev_.store(0);   
   }
 
   void requestLock(
@@ -70,8 +155,13 @@ class RedisMetaService : public IMetaService {
       callback_t<const std::vector<op_t>&, unsigned, callback_t<unsigned>>
           callback) override;
 
+  void retryDaeminWatch(
+      const std::string& prefix,
+      callback_t<const std::vector<op_t>&, unsigned, callback_t<unsigned>>
+          callback);
+
   Status probe() override {
-    if (RedisLauncher::probeRedisServer(redis_, prefix_)) {
+    if (RedisLauncher::probeRedisServer(redis_, syncredis_, prefix_)) {
       return Status::OK();
     } else {
       return Status::Invalid(
@@ -90,7 +180,17 @@ class RedisMetaService : public IMetaService {
   Status preStart() override;
 
   std::unique_ptr<redis::AsyncRedis> redis_;
-  std::unique_ptr<boost::process::child> redis_proc_; // 什么用处
+  std::unique_ptr<redis::Redis> syncredis_;
+  std::shared_ptr<redis::RedLock<redis::RedMutex>> redlock_;
+  std::shared_ptr<redis::AsyncSubscriber> watcher_;
+  std::shared_ptr<RedisWatchHandler> handler_;
+  std::unique_ptr<asio::steady_timer> backoff_timer_;
+  std::unique_ptr<boost::process::child> redis_proc_; // create child process when launching a redis server
+
+  callback_task_queue_t registered_callbacks_;
+  std::atomic<unsigned> handled_rev_;
+  std::mutex registered_callbacks_mutex_;
+  std::mutex watch_mutex_;
 
   friend class IMetaService;
 };
