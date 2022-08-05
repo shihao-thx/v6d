@@ -55,7 +55,7 @@ Status RedisLauncher::LaunchRedisServer(
   }
 
   LOG(INFO) << "Starting the etcd server";
-
+  return Status::OK();
 }
 
 void RedisLauncher::parseEndpoint() {}

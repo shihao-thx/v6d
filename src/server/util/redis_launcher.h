@@ -26,7 +26,7 @@ limitations under the License.
 #include "boost/process.hpp"
 #include "redis++/async_redis++.h"
 #include "redis++/redis++.h"
-//#include "redis++/recipes/redlock.h"
+#include "redis++/recipes/redlock.h"
 
 #include "common/util/logging.h"
 #include "common/util/status.h"

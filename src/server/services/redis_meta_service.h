@@ -22,30 +22,15 @@ limitations under the License.
 
 #include "redis++/async_redis++.h"
 #include "redis++/redis++.h"
-//#include "redis++/recipes/redlock.h"
+#include "redis++/recipes/redlock.h"
 
+#include "server/services/etcd_meta_service.h"
 #include "server/services/meta_service.h"
 #include "server/util/redis_launcher.h"
 
 namespace vineyard {
 
 namespace redis = sw::redis;
-
-namespace detail {
-template <typename T>
-struct greater_on_tuple_fst {
-  bool operator()(T const& left, T const& right) const noexcept {
-    return left.first > right.first;
-  }
-};
-}  // namespace detail
-
-using callback_task_t =
-    std::pair<unsigned,
-              callback_t<const std::vector<IMetaService::op_t>&, unsigned>>;
-using callback_task_queue_t =
-    std::priority_queue<callback_task_t, std::vector<callback_task_t>,
-                        detail::greater_on_tuple_fst<callback_task_t>>;
 
 class RedisMetaService;
 /**

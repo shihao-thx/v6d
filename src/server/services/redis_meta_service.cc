@@ -19,7 +19,7 @@ limitations under the License.
 #include <string>
 #include <vector>
 #include <unordered_map>
-//#include <pplx/pplxtasks.h>
+#include <pplx/pplxtasks.h>
 
 #include "common/util/boost.h"
 #include "common/util/logging.h"
@@ -34,17 +34,15 @@ void RedisWatchHandler::operator()(
   if (this->meta_service_ptr_->stopped()) {
     return;
   }
-
   auto resp = redis->lrange<std::vector<std::string>>("opslist", handled_rev_, stoi(rev));
-  // 
-  //
+  
   std::vector<std::string> puts;
   std::vector<std::string> dels;
   for(auto const& item : resp.get()) {
       auto hresp = redis->hgetall<std::vector<std::string>>(item);
       auto const& vec = hresp.get();
       int j;
-      for (int i=0; i<(vec.size() >> 1); i++){
+      for (size_t i=0; i<(vec.size() >> 1); i++){
           j = i << 1;
           if(vec[j+1] == "0") {
               // keys need to Put
@@ -58,14 +56,14 @@ void RedisWatchHandler::operator()(
   std::vector<RedisMetaService::op_t> ops;
   auto mresp = redis->mget<std::vector<std::string>>(puts.begin(), puts.end());
   auto const& vals = mresp.get();
-  for(int i=0; i<vals.size(); i++) {
+  for(size_t i=0; i<vals.size(); i++) {
     ops.emplace_back(RedisMetaService::op_t::Put(
       boost::algorithm::erase_head_copy(puts[i], prefix_.size()),
       vals[i], stoi(rev) + 1));
   }
 
   for(auto const& item : dels) {
-    ops.emplace_back(RedisMetaService::op_t::Del(item, 0));
+    ops.emplace_back(RedisMetaService::op_t::Del(item, stoi(rev) + 1));
   }
 
 #ifndef NDEBUG
@@ -111,16 +109,16 @@ void RedisMetaService::Stop() {
     boost::system::error_code ec;
     backoff_timer_->cancel(ec);
   }
-  if (watcher_) {
+  /*if (watcher_) {
     try {
       watcher_->Cancel();
     } catch (...) {}
-  }
-  if (etcd_proc_) {
+  }*/
+  if (redis_proc_) {
     std::error_code err;
-    etcd_proc_->terminate(err);
-    kill(etcd_proc_->id(), SIGTERM);
-    etcd_proc_->wait(err);
+    redis_proc_->terminate(err);
+    kill(redis_proc_->id(), SIGTERM);
+    redis_proc_->wait(err);
   }
 }
 
@@ -129,8 +127,8 @@ void RedisMetaService::requestLock(
     callback_t<std::shared_ptr<ILock>> callback_after_locked) {
   auto self(shared_from_base());
   pplx::create_task([self]() { 
-      self->redlock_.try_lock(std::chrono::seconds(30));
-      auto val = *redis_->get("redis_revision").get();
+      self->redlock_->try_lock(std::chrono::seconds(30));
+      auto val = *(self->redis_->get("redis_revision").get());
       return val;
     })
     .then([self, callback_after_locked](std::string val) {
@@ -163,14 +161,14 @@ void RedisMetaService::requestAll(
     // We must ensure that the redis_revision matches the local data.
     // But we're not getting kvs at the same time, redis_revision can be changed 
     // when getting kvs in two steps.
-    // Local data over revision is fine. They can matches when publishing
-    auto val = redis_->get("redis_revision").get();
+    // Local data over revision is fine. They can matches when publish coming
+    auto val = *redis_->get("redis_revision").get();
     redis_->command<std::vector<std::string>>("KEYS", "*", 
       [self, callback, val](redis::Future<std::vector<std::string>> &&resp) {
         auto const& vec = resp.get();
         std::vector<std::string> keys;
         keys.emplace_back("MGET");
-        for(int i = 0; i <vec.size(); i++) {
+        for(size_t i = 0; i <vec.size(); i++) {
           if (!boost::algorithm::starts_with(vec[i],
                                           self->prefix_ + "/")) {
             // ignore garbage values
@@ -187,14 +185,16 @@ void RedisMetaService::requestAll(
             std::vector<op_t> ops;
             ops.reserve(vals.size());
             // collect kvs
-            for(int i=1; i<keys.size(); i++) {
+            for(size_t i=1; i<keys.size(); i++) {
                 op_key = boost::algorithm::erase_head_copy(
                 keys[i], self->prefix_.size());
                 ops.emplace_back(RedisMetaService::op_t::Put(
-                  op_key, vals[i-1], 0));
-            }   
+                  op_key, vals[i-1], stoi(val)));
+            }
+            auto status =
+            Status::EtcdError(35, "redis error_message");   
             self->server_ptr_->GetMetaContext().post(
-            boost::bind(callback, ops, stoi(*val)));
+                boost::bind(callback, status, ops, stoi(val)));
          }); 
      });   
 }
@@ -210,7 +210,7 @@ void RedisMetaService::requestUpdates(
         return;
       }
       //try {
-        auto head_rev = stoi(*resp.get());
+        auto head_rev = static_cast<unsigned>(stoi(*resp.get()));
         {
           std::lock_guard<std::mutex> scope_lock(self->registered_callbacks_mutex_);
           auto handled_rev = self->handled_rev_.load();
@@ -235,7 +235,6 @@ void RedisMetaService::commitUpdates(
   // which occupies a large memory.
 
   // the operation number is ready to publish
-  //redis_->incr("redis_revision").get();
   auto rev = *redis_->get("redis_revision").get();
   auto op_prefix = "op" + rev;
 
@@ -243,7 +242,7 @@ void RedisMetaService::commitUpdates(
   kvs.emplace_back("MSET");
   std::unordered_map<std::string, unsigned> ops;
   std::vector<std::string> keys;
-  for(auto& op : changes) {
+  for(auto const& op : changes) {
     if(op.op == op_t::kPut) {
       kvs.emplace_back(prefix_ + op.kv.key);
       kvs.emplace_back(op.kv.value);
