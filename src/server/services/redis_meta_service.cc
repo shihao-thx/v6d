@@ -70,7 +70,7 @@ void RedisWatchHandler::operator()(
   static unsigned processed = 0;
 #endif
 
-  auto status = Status::EtcdError(35, "redis error_message");
+  auto status = Status::EtcdError(0, "redis message");
 
   ctx_.post(boost::bind(
     callback_, status, ops, stoi(rev) + 1,
@@ -147,7 +147,7 @@ void RedisMetaService::requestLock(
         if (self->stopped_.load()) {
           status = Status::AlreadyStopped("redis metadata service");
         } else {
-          status = Status::EtcdError(35, "redis error_message");
+          status = Status::EtcdError(0, "redis message");
         }
         self->server_ptr_->GetMetaContext().post(
             boost::bind(callback_after_locked, status, lock_ptr));
@@ -163,7 +163,7 @@ void RedisMetaService::requestAll(
     // when getting kvs in two steps.
     // Local data over revision is fine. They can matches when publish coming
     auto val = *redis_->get("redis_revision").get();
-    redis_->command<std::vector<std::string>>("KEYS", "*", 
+    redis_->command<std::vector<std::string>>("KEYS", "vineyard/*", 
       [self, callback, val](redis::Future<std::vector<std::string>> &&resp) {
         auto const& vec = resp.get();
         std::vector<std::string> keys;
@@ -192,7 +192,7 @@ void RedisMetaService::requestAll(
                   op_key, vals[i-1], stoi(val)));
             }
             auto status =
-            Status::EtcdError(35, "redis error_message");   
+            Status::EtcdError(0, "redis message");   
             self->server_ptr_->GetMetaContext().post(
                 boost::bind(callback, status, ops, stoi(val)));
          }); 
