@@ -138,9 +138,9 @@ void RedisMetaService::requestLock(
               // ensure the lock get released.
               self->redlock_->unlock();
               if (self->stopped_.load()) {
-                return Status::AlreadyStopped("etcd metadata service");
+                return Status::AlreadyStopped("redis metadata service");
               }
-              return Status::EtcdError(35, "redis lock error_message");
+              return Status::EtcdError(0, "redis lock message");
             },
             stoi(val));
         Status status;
