@@ -136,7 +136,6 @@ class IMetaService : public std::enable_shared_from_this<IMetaService> {
     LOG(INFO) << "meta service is starting ...";
     RETURN_ON_ERROR(this->preStart());
     RETURN_ON_ERROR(this->probe());
-    LOG(INFO) << "from shihao: client build is ok.";
     auto self(shared_from_this());
     requestValues("", [self](const Status& status, const json& meta,
                              unsigned rev) {
