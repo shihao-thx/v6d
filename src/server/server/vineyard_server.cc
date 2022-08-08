@@ -114,8 +114,9 @@ Status VineyardServer::Serve(StoreType const& bulk_store_type) {
         shared_from_this(), bulk_store_,
         spec_["bulkstore_spec"]["stream_threshold"].get<size_t>());
   }
-
+  
   BulkReady();
+
 
   serve_status_ = Status::OK();
   return serve_status_;

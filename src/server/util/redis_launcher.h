@@ -42,6 +42,7 @@ class RedisLauncher {
 
   Status LaunchRedisServer(std::unique_ptr<redis::AsyncRedis>& redis_client,
                           std::unique_ptr<redis::Redis>& syncredis_client,
+                          std::shared_ptr<redis::RedMutex>& mtx,
                           std::shared_ptr<redis::RedLock<redis::RedMutex>>& lock,
                           std::unique_ptr<boost::process::child>& redis_proc);
 

@@ -33,7 +33,8 @@ namespace vineyard {
 Status RedisLauncher::LaunchRedisServer(
   std::unique_ptr<redis::AsyncRedis>& redis_client,
   std::unique_ptr<redis::Redis>& syncredis_client,
-  std::shared_ptr<redis::RedLock<redis::RedMutex>>& lock,
+  std::shared_ptr<redis::RedMutex>& mtx,
+  std::shared_ptr<redis::RedLock<redis::RedMutex>>& redlock,
   std::unique_ptr<boost::process::child>& redis_proc) {
   // async redis client
   redis::ConnectionOptions opts;
@@ -41,17 +42,17 @@ Status RedisLauncher::LaunchRedisServer(
   opts.password = "root";
   opts.port = 6379;
   redis::ConnectionPoolOptions pool_opts;
-  pool_opts.size = 1;
+  pool_opts.size = 3;
   redis_client.reset(new redis::AsyncRedis(opts, pool_opts));
   redis_client->command<long long>("SETNX", "redis_revision", 0).get();
 
   // sync redis client
   syncredis_client.reset(new redis::Redis(opts, pool_opts));
-  redis::RedMutex mtx(*syncredis_client, "resource");
-  lock.reset(new redis::RedLock<redis::RedMutex>(mtx, std::defer_lock));
+  mtx.reset(new redis::RedMutex(*syncredis_client, "resource"));
+  redlock.reset(new redis::RedLock<redis::RedMutex>(*mtx, std::defer_lock));
 
   if (probeRedisServer(redis_client, syncredis_client, "sync_lock")) {
-        return Status::OK();
+      return Status::OK();
   }
 
   LOG(INFO) << "Starting the etcd server";
@@ -69,7 +70,6 @@ bool RedisLauncher::probeRedisServer(
   auto task = redis_client->ping(); 
   auto response = task.get();
   auto sync_response = syncredis_client->ping();
-  // TODO:
   return redis_client && syncredis_client && (response == "PONG") && (sync_response == "PONG"); 
 }
 

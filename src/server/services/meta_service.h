@@ -147,7 +147,6 @@ class IMetaService : public std::enable_shared_from_this<IMetaService> {
         self->startDaemonWatch("", self->rev_,
                                boost::bind(&IMetaService::daemonWatchHandler,
                                            self, _1, _2, _3, _4));
-
         // register self info.
         self->registerToEtcd();
       } else {

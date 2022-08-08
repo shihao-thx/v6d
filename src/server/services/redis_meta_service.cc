@@ -38,11 +38,11 @@ void RedisWatchHandler::operator()(
   
   std::vector<std::string> puts;
   std::vector<std::string> dels;
-  for(auto const& item : resp.get()) {
+  for (auto const& item : resp.get()) {
       auto hresp = redis->hgetall<std::vector<std::string>>(item);
       auto const& vec = hresp.get();
       int j;
-      for (size_t i=0; i<(vec.size() >> 1); i++){
+      for (size_t i = 0; i < (vec.size() >> 1); i++){
           j = i << 1;
           if(vec[j+1] == "0") {
               // keys need to Put
@@ -54,15 +54,17 @@ void RedisWatchHandler::operator()(
       }   
   }
   std::vector<RedisMetaService::op_t> ops;
-  auto mresp = redis->mget<std::vector<std::string>>(puts.begin(), puts.end());
-  auto const& vals = mresp.get();
-  for(size_t i=0; i<vals.size(); i++) {
-    ops.emplace_back(RedisMetaService::op_t::Put(
+  if (puts.size() > 0) {
+    auto mresp = redis->mget<std::vector<std::string>>(puts.begin(), puts.end());
+    auto const& vals = mresp.get();
+    for (size_t i = 0; i < vals.size(); i++) {
+      ops.emplace_back(RedisMetaService::op_t::Put(
       boost::algorithm::erase_head_copy(puts[i], prefix_.size()),
       vals[i], stoi(rev) + 1));
+    }
   }
 
-  for(auto const& item : dels) {
+  for (auto const& item : dels) {
     ops.emplace_back(RedisMetaService::op_t::Del(item, stoi(rev) + 1));
   }
 
@@ -126,7 +128,7 @@ void RedisMetaService::requestLock(
     std::string lock_name,
     callback_t<std::shared_ptr<ILock>> callback_after_locked) {
   auto self(shared_from_base());
-  pplx::create_task([self]() { 
+  pplx::create_task([self]() {
       self->redlock_->try_lock(std::chrono::seconds(30));
       auto val = *(self->redis_->get("redis_revision").get());
       return val;
@@ -168,7 +170,7 @@ void RedisMetaService::requestAll(
         auto const& vec = resp.get();
         std::vector<std::string> keys;
         keys.emplace_back("MGET");
-        for(size_t i = 0; i <vec.size(); i++) {
+        for (size_t i = 0; i < vec.size(); i++) {
           if (!boost::algorithm::starts_with(vec[i],
                                           self->prefix_ + "/")) {
             // ignore garbage values
@@ -176,26 +178,39 @@ void RedisMetaService::requestAll(
           }   
           keys.emplace_back(vec[i]);
         }
-        // mget   
-        self->redis_->command<std::vector<std::string>>(keys.begin(), keys.end(),
-          [self, keys, callback, val](redis::Future<std::vector<std::string>> &&resp) {
-            auto const& vals = resp.get(); 
-            std::string op_key;
-            //std::vector<op_t> ops(vals.size());
-            std::vector<op_t> ops;
-            ops.reserve(vals.size());
-            // collect kvs
-            for(size_t i=1; i<keys.size(); i++) {
-                op_key = boost::algorithm::erase_head_copy(
-                keys[i], self->prefix_.size());
-                ops.emplace_back(RedisMetaService::op_t::Put(
-                  op_key, vals[i-1], stoi(val)));
-            }
-            auto status =
-            Status::EtcdError(0, "redis message");   
-            self->server_ptr_->GetMetaContext().post(
-                boost::bind(callback, status, ops, stoi(val)));
-         }); 
+        if (keys.size() > 1) {
+          // mget   
+          self->redis_->command<std::vector<std::string>>(keys.begin(), keys.end(),
+            [self, keys, callback, val](redis::Future<std::vector<std::string>> &&resp) {
+              //try {
+                auto const& vals = resp.get(); 
+                std::string op_key;
+                //std::vector<op_t> ops(vals.size());
+                std::vector<op_t> ops;
+                ops.reserve(vals.size());
+                // collect kvs
+                for (size_t i = 1; i < keys.size(); i++) {
+                    op_key = boost::algorithm::erase_head_copy(
+                    keys[i], self->prefix_.size());
+                    ops.emplace_back(RedisMetaService::op_t::Put(
+                      op_key, vals[i-1], stoi(val)));
+                }
+                auto status =
+                Status::EtcdError(0, "redis message");  
+                self->server_ptr_->GetMetaContext().post(
+                    boost::bind(callback, status, ops, stoi(val)));
+              // } catch (const redis::ReplyError& err) {
+              //   LOG(INFO) << "from shihao: " << err.what();
+              //   std::cout << "from shihao: " << err.what() << std::endl;
+              // }
+          }); 
+        } else {
+          std::vector<op_t> ops;
+          auto status =
+            Status::EtcdError(0, "redis message");  
+          self->server_ptr_->GetMetaContext().post(
+                    boost::bind(callback, status, ops, stoi(val)));
+        }
      });   
 }
 
@@ -209,7 +224,7 @@ void RedisMetaService::requestUpdates(
       if (self->stopped_.load()) {
         return;
       }
-      //try {
+      //try { // in vain
         auto head_rev = static_cast<unsigned>(stoi(*resp.get()));
         {
           std::lock_guard<std::mutex> scope_lock(self->registered_callbacks_mutex_);
@@ -242,7 +257,7 @@ void RedisMetaService::commitUpdates(
   kvs.emplace_back("MSET");
   std::unordered_map<std::string, unsigned> ops;
   std::vector<std::string> keys;
-  for(auto const& op : changes) {
+  for (auto const& op : changes) {
     if(op.op == op_t::kPut) {
       kvs.emplace_back(prefix_ + op.kv.key);
       kvs.emplace_back(op.kv.value);
@@ -252,11 +267,16 @@ void RedisMetaService::commitUpdates(
       ops.insert({op.kv.key, op_t::kDel});
     }
   }
-  redis_->del(
+
+  // delete keys
+  if (keys.size() > 0) {
+    redis_->del(
       keys.begin(), keys.end(),
       [](redis::Future<long long> &&resp) {
   
-  });
+    });
+  }
+
   auto self(shared_from_base());
   // mset kvs
   redis_->command<void>(
@@ -278,7 +298,7 @@ void RedisMetaService::commitUpdates(
                         if (self->stopped_.load()) {
                           status = Status::AlreadyStopped("redis metadata service");
                         } else {
-                          status = Status::EtcdError(35, "redis error_message");
+                          status = Status::EtcdError(0, "redis commit message");
                         }
                         self->server_ptr_->GetMetaContext().post(
                         boost::bind(callback_after_updated, status, std::stoi(rev)));
@@ -294,9 +314,9 @@ void RedisMetaService::startDaemonWatch(
     callback_t<const std::vector<op_t>&, unsigned, callback_t<unsigned>>
     callback) {
   LOG(INFO) << "start background redis watch, since " << rev_;
-  try {
+  try { 
     this->handled_rev_.store(since_rev);
-    if(!handler_) {
+    if (!handler_) {
       handler_.reset(new RedisWatchHandler(
         shared_from_base(), server_ptr_->GetMetaContext(), callback, prefix_,
         prefix_ + meta_sync_lock_, this->registered_callbacks_,
@@ -305,14 +325,13 @@ void RedisMetaService::startDaemonWatch(
     auto self(shared_from_base());
     this->watcher_.reset(new redis::AsyncSubscriber(redis_->subscriber()));
     this->watcher_->on_message([self](std::string channel, std::string msg) {
-    // ensure that post first execute first? no
-    // so try to lock
-    self->watch_mutex_.lock();
-    self->server_ptr_->GetMetaContext().post(boost::bind<void>(
-          std::ref(*(self->handler_)), std::ref(self->redis_), msg));
+      // can't ensure that post first execute first
+      // so try to lock, unlock when this watch callback finished
+      self->watch_mutex_.lock();
+      self->server_ptr_->GetMetaContext().post(boost::bind<void>(
+            std::ref(*(self->handler_)), std::ref(self->redis_), msg));
     });
     this->watcher_->subscribe("operations");
-
   } catch (std::runtime_error& e) {
     LOG(ERROR) << "Failed to create daemon redis watcher: " << e.what();
     this->watcher_.reset();
@@ -345,7 +364,7 @@ void RedisMetaService::retryDaeminWatch(
 
 Status RedisMetaService::preStart() {
   RedisLauncher launcher(redis_spec_);
-  return launcher.LaunchRedisServer(redis_, syncredis_, redlock_, redis_proc_);
+  return launcher.LaunchRedisServer(redis_, syncredis_, mtx_, redlock_, redis_proc_);
 }
 
 }

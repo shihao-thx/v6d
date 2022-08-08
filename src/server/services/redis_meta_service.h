@@ -166,6 +166,7 @@ class RedisMetaService : public IMetaService {
 
   std::unique_ptr<redis::AsyncRedis> redis_;
   std::unique_ptr<redis::Redis> syncredis_;
+  std::shared_ptr<redis::RedMutex> mtx_;
   std::shared_ptr<redis::RedLock<redis::RedMutex>> redlock_;
   std::shared_ptr<redis::AsyncSubscriber> watcher_;
   std::shared_ptr<RedisWatchHandler> handler_;
