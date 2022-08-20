@@ -22,6 +22,9 @@ limitations under the License.
 
 #include "server/services/etcd_meta_service.h"
 #include "server/services/local_meta_service.h"
+#if defined(BUILD_VINEYARDD_REDIS)
+#include "server/services/redis_meta_service.h"
+#endif  // BUILD_VINEYARDD_REDIS
 #include "server/util/meta_tree.h"
 
 namespace vineyard {
@@ -35,6 +38,11 @@ std::shared_ptr<IMetaService> IMetaService::Get(
   if (meta == "etcd") {
     return std::shared_ptr<IMetaService>(new EtcdMetaService(server_ptr));
   }
+#if defined(BUILD_VINEYARDD_REDIS)
+  if (meta == "redis") {
+    return std::shared_ptr<IMetaService>(new RedisMetaService(server_ptr));
+  }
+#endif  // BUILD_VINEYARDD_REDIS
   if (meta == "local") {
     return std::shared_ptr<IMetaService>(new LocalMetaService(server_ptr));
   }
