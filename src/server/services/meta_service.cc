@@ -33,7 +33,7 @@ std::shared_ptr<IMetaService> IMetaService::Get(
     std::shared_ptr<VineyardServer> server_ptr) {
   std::string meta = server_ptr->GetSpec()["metastore_spec"]["meta"]
                          .get_ref<const std::string&>();
-  VINEYARD_ASSERT(meta == "etcd" || meta == "local",
+  VINEYARD_ASSERT(meta == "etcd" || meta == "redis" || meta == "local",
                   "Invalid metastore: " + meta);
   if (meta == "etcd") {
     return std::shared_ptr<IMetaService>(new EtcdMetaService(server_ptr));
